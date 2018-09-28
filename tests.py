@@ -5,6 +5,7 @@ import unittest
 
 
 WEEBITC = os.path.abspath(os.path.join(os.path.dirname(__file__), 'weebitc'))
+WEEBITCPP = os.path.abspath(os.path.join(os.path.dirname(__file__), 'weebitcpp'))
 
 
 def dumps(obj):
@@ -18,9 +19,11 @@ def zdumps(obj):
 loads = json.loads
 
 
-class ParserTests(unittest.TestCase):
+class CParserTests(unittest.TestCase):
+    TEST_PROGRAM = WEEBITC
+
     def send_test_data(self, data):
-        p = subprocess.Popen(WEEBITC, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = subprocess.Popen(self.TEST_PROGRAM, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         rx, _ = p.communicate(data)
         return self.parse_test_data(rx)
@@ -82,6 +85,10 @@ class ParserTests(unittest.TestCase):
         }
         test_str = zdumps(obj)
         self.assertEqual(self.send_test_data(test_str), [obj])
+
+
+class CPPParserTests(CParserTests):
+    TEST_PROGRAM = WEEBITCPP
 
 
 if __name__ == '__main__':
