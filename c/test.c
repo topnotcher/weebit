@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#include "weebitc.h"
+#include "weebit.h"
 
 void json_testing_handler(const char *const str, const size_t size) {
 	printf("%lu%s", size, str);

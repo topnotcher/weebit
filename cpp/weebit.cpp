@@ -1,4 +1,4 @@
-#include "weebitcpp.h"
+#include "weebit.hpp"
 
 template <typename T>
 static inline T min(const T a, const T b) {
