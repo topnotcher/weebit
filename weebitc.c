@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include "weebit.h"
+#include "weebitc.h"
 
 
 /**

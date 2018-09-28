@@ -4,7 +4,7 @@ import subprocess
 import unittest
 
 
-WEEBIT_C = os.path.abspath(os.path.join(os.path.dirname(__file__), 'weebit_c'))
+WEEBITC = os.path.abspath(os.path.join(os.path.dirname(__file__), 'weebitc'))
 
 
 def dumps(obj):
@@ -20,7 +20,7 @@ loads = json.loads
 
 class ParserTests(unittest.TestCase):
     def send_test_data(self, data):
-        p = subprocess.Popen(WEEBIT_C, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = subprocess.Popen(WEEBITC, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         rx, _ = p.communicate(data)
         return self.parse_test_data(rx)

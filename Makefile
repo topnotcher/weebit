@@ -1,4 +1,4 @@
-SOURCES = weebit.c main.c
+SOURCES = weebitc.c weebitc_test.c
 OBJECTS = $(SOURCES:.c=.o)
 CFLAGS = -Wall -Wextra -Werror -pedantic --std=gnu11
 CC = gcc
@@ -6,10 +6,10 @@ CC = gcc
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-weebit_c: $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) -o weebit_c
+weebitc: $(OBJECTS)
+	$(CC) $(CFLAGS) $(OBJECTS) -o weebitc
 
-all: weebit_c
+all: weebitc
 
 test: all
 	python tests.py
