@@ -5,7 +5,7 @@ WEEBITCPP_SOURCES = weebitcpp.cpp weebitcpp_test.cpp
 WEEBITCPP_OBJECTS = $(WEEBITCPP_SOURCES:.cpp=.o)
 
 CFLAGS = -Wall -Wextra -Werror -pedantic --std=gnu11
-CXXFLAGS = -Wall -Wextra -Werror -pedantic --std=gnu++17
+CXXFLAGS = -Wall -Wextra -Werror -pedantic -I rapidjson/include --std=gnu++17
 CC = gcc
 CXX = g++
 
