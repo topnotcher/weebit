@@ -39,6 +39,7 @@ typedef struct {
 	size_t buf_size;
 	char *buf;
 	size_t buf_bytes;
+	bool escaped_char;
 
 	size_t level; 
 	void (*handler)(const char *const, const size_t);
@@ -223,6 +224,7 @@ static void json_start_document(json_parser *const j, char *const buf, const siz
 		j->buf_size = buf_size;
 		j->buf_bytes = 0;
 		j->level = 0;
+		j->escaped_char = false;
 	}
 }
 
@@ -281,9 +283,22 @@ static enum json_parser_status json_feed_document(json_parser *const j, const ch
 }
 
 static enum json_parser_status json_feed_quoted(json_parser *const j, const char d) {
-	// return true (done) if d is a double quote and the previous char did not escape it
-	if (d == '"' && j->buf_bytes >= 2 && j->buf[j->buf_bytes - 2] != '\\')
-		j->state = JSON_STATE_DOCUMENT;
+	/* Return to the document state if we reach the closing quote.
+	 * - And the closing quote was not escaped by \.
+	 * - The closing quote is escaped by \ if and only if:
+	 *     - The character before the quote was \; and
+	 *     - The character before the \ was not \\
+	 */
+	if (!j->escaped_char) {
+		if (d == '"')
+			j->state = JSON_STATE_DOCUMENT;
+
+		else if (d == '\\')
+			j->escaped_char = true;
+
+	} else {
+		j->escaped_char = false;
+	}
 
 	return JSON_PARSER_CONTINUE;
 }

@@ -102,6 +102,16 @@ class ParserTests(unittest.TestCase):
         test_str = zdumps(obj)
         self.assertEqual(self.send_test_data(test_str), [obj])
 
+    def test_escaped_slash_quote(self):
+        obj = {'foo': 'bar"'}
+        test_str = zdumps(obj)
+        self.assertEqual(self.send_test_data(test_str), [obj])
+
+    def test_escaped_char(self):
+        obj = {'foo': '\\'}
+        test_str = zdumps(obj)
+        self.assertEqual(self.send_test_data(test_str), [obj])
+
 
 if __name__ == '__main__':
     import sys

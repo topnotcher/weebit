@@ -28,6 +28,7 @@ class JsonParser {
 	size_t buf_size;
 	size_t buf_bytes;
 	char *buf;
+	bool escaped_char;
 
 	size_t level;
 

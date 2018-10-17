@@ -146,8 +146,16 @@ JsonParser::status JsonParser::feed_document(const char d) {
 }
 
 JsonParser::status JsonParser::feed_quoted(const char d) {
-	if (d == '"' && this->buf_bytes >= 2 && this->buf[this->buf_bytes - 2] != '\\')
-		this->state = JsonParser::DOCUMENT;
+	if (!this->escaped_char) {
+		if (d == '"')
+			this->state = JsonParser::DOCUMENT;
+
+		else if (d == '\\')
+			this->escaped_char = true;
+
+	} else {
+		this->escaped_char = false;
+	}
 
 	return JsonParser::CONTINUE;
 }
@@ -161,6 +169,7 @@ void JsonParser::start(char *const buf, const size_t buf_size) {
 		// reserve space for a NUL terminator
 		this->buf_size = buf_size - 1;
 		this->state = JsonParser::DOCUMENT;
+		this->escaped_char = false;
 
 	} else {
 		this->buf = nullptr;
