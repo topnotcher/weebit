@@ -1,10 +1,33 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#include <string>
+
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+
 #include "weebit.hpp"
 
-void json_testing_handler(const char *const str, const size_t size) {
-	printf("%lu%s", size, str);
+using std::string;
+
+
+void json_testing_handler(const char *const str, const size_t) {
+	rapidjson::Document d;
+	rapidjson::StringStream json {str};
+
+    d.ParseStream<rapidjson::kParseValidateEncodingFlag, rapidjson::UTF8<>>(json);
+
+	if (!d.HasParseError()) {
+		rapidjson::StringBuffer buffer;
+		rapidjson::Writer<decltype(buffer)> writer {buffer};
+		d.Accept(writer);
+		string str = buffer.GetString();
+
+		printf("%lu%s", str.size(), str.c_str());
+	} else {
+		printf("0");
+	}
 }
 
 

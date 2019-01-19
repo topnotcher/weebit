@@ -37,7 +37,7 @@ class TestExecutableMonostate(object):
         return self.parse_test_data(rx)
 
     def parse_test_data(self, data):
-        data = data.strip().decode()
+        data = data.strip().decode('utf-8')
 
         objects = []
         offset = 0
@@ -49,12 +49,13 @@ class TestExecutableMonostate(object):
                 offset += 1
 
             json_len = int(num)
-            json_str_end = min(offset + json_len, len(data))
-            objects.append(
-                json.loads(data[offset : json_str_end])
-            )
+            if json_len > 0:
+                json_str_end = min(offset + json_len, len(data))
+                objects.append(
+                    json.loads(data[offset : json_str_end])
+                )
 
-            offset += json_len
+                offset += json_len
 
         return objects
 
@@ -111,6 +112,13 @@ class ParserTests(unittest.TestCase):
         obj = {'foo': '\\'}
         test_str = zdumps(obj)
         self.assertEqual(self.send_test_data(test_str), [obj])
+
+    def test_invalid_utf8(self):
+        self.assertEqual(self.send_test_data(b'{}{"foo": "\x80ascii"}'), [])
+
+    def test_parse_error(self):
+        self.assertEqual(self.send_test_data(b'{}{"foo": "\\z"}'), [])
+        self.assertEqual(self.send_test_data(b'{}{"foo" "z"}'), [])
 
 
 if __name__ == '__main__':
