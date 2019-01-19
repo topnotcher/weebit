@@ -1,56 +1,21 @@
 #include <cstddef>
+#include <algorithm>
+
+#include "json.hpp"
 
 #ifndef WEEBITCPP_H
 #define WEEBITCPP_H
 
 using std::size_t;
+using std::min;
 
-class JsonParser {
-	public:
-	typedef void (*handler_callback)(const char *const, const size_t);
+namespace weebit {
 
-	enum status {
-		DONE,
-		CONTINUE,
-		PARSE_ERROR,
-		BUFFER_OVERFLOW,
-		INVALID_STATE,
-	};
-
-	private:
-	enum {
-		IDLE,
-		DOCUMENT,
-		QUOTE,
-	} state;
-
-	handler_callback handler;
-	size_t buf_size;
-	size_t buf_bytes;
-	char *buf;
-	bool escaped_char;
-
-	size_t level;
-
-	JsonParser::status feed_document(const char);
-	JsonParser::status feed_quoted(const char);
-
-	public:
-
-	JsonParser();
-	~JsonParser();
-
-	void start(char *const, const size_t);
-	JsonParser::status feed(const char);
-
-	void set_handler(handler_callback handler) {
-		this->handler = handler;
-	};
-};
-
+template<class T>
 class StreamParser {
-
-	private:
+private:
+	using JsonHandlerType = T;
+	using JsonParserType = JsonParser<JsonHandlerType>;
 	
 	enum {
 		IDLE,
@@ -59,29 +24,103 @@ class StreamParser {
 		MULTIPART,
 	} state;
 
-	const size_t MAX_DOCUMENT_LENGTH = 65535;
 	const char OBJECT_START[3] = "{}";
-	const char JSON_START = '{';
 	const char MULTIPART_START = '-';
+	char buf[sizeof(OBJECT_START)];
+	const size_t buf_size = sizeof(buf);
 
 	size_t buf_bytes;
-	size_t buf_size;
-	char *buf;
 
-	JsonParser json;
-
-	void reset(void);
-
-	public:
-
-	StreamParser();
-	~StreamParser();
-	
-	void set_json_handler(JsonParser::handler_callback handler) {
-		this->json.set_handler(handler);
+	JsonParserType json; 
+	void reset(void) {
+		state = StreamParser::IDLE;
+		buf_bytes = 0;
 	}
 
-	void feed(const char);
+public:
+
+	StreamParser(JsonHandlerType &json_handler) : json(json_handler) {
+		reset();
+	}
+
+	~StreamParser() {}
+	
+	void feed(const char d) {
+		const size_t hdr_size = sizeof(OBJECT_START) / sizeof(OBJECT_START[0])
+								- sizeof(OBJECT_START[0]);
+
+		switch (state) {
+		/**
+		* In the idle state, buffer chars until we hit {} (OBJECT_START).
+		* After buffering the start, the next character should be either -
+		* (MPF) or { (JSON). This gets determined in the WAIT_TYPE state.
+		*/
+		case StreamParser::IDLE:
+			if (d == OBJECT_START[min(buf_bytes, hdr_size)] && buf_bytes < buf_size) {
+				buf[buf_bytes++] = d; 
+				if (buf_bytes == hdr_size)
+					state = WAIT_TYPE;
+
+			// The buffered sequence does not match OBJECT_START.
+			} else {
+				reset();
+			}
+
+			break;
+
+		/**
+		* We received {} already. This is the next character used to determine the
+		* type of data that comes next.
+		*/
+		case WAIT_TYPE:
+			// This character and data that follows are JSON.
+			if (d == JsonParserType::JSON_START) {
+				state = JSON;
+
+				[[fallthrough]];
+
+			// This begins a multipart form.
+			} else if (d == MULTIPART_START) {
+				state = StreamParser::MULTIPART;
+
+				[[fallthrough]];
+
+			// Unknown
+			} else {
+				reset();
+
+				break;
+			}
+
+		/**
+		* Feed characters to JSON as long as it keeps accepting them.  When it
+		* no longer accepts them, reset the parser (JSON parser resets itself).
+		*/
+		case JSON:
+			if (json.template feed<0u>(d) != JsonParserType::CONTINUE) {
+				reset();
+			}
+
+			break;
+
+		case MULTIPART: 
+			reset();
+
+			break;
+		}
+	}
+
+	void feed(const char *str) {
+		while (*str)
+			feed(*str++);
+	}
+
+	void feed(const char *const str, const size_t size) {
+		for (size_t i = 0; i < size; ++i)
+			feed(str[i]);
+	}
 };
+
+}
 
 #endif
