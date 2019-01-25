@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <algorithm>
+#include <tuple>
 
 #include "json.hpp"
 
@@ -44,20 +45,36 @@ public:
 	}
 
 	~StreamParser() {}
-	
-	void feed(const char d) {
+
+	void feed(const char *const in, const size_t size) {
+		size_t consumed = 0;
+		const char *rptr = in; 
+
+		while (consumed < size) {
+			size_t consumed_by_state = 0;
+			consumed_by_state = consume_with_state(rptr, size - consumed);
+			rptr += consumed_by_state;
+			consumed += consumed_by_state;
+		}
+	}
+
+	size_t consume_with_state(const char *const in, const size_t size) {
 		const size_t hdr_size = sizeof(OBJECT_START) / sizeof(OBJECT_START[0])
 								- sizeof(OBJECT_START[0]);
 
+		size_t consumed = 0;
+
 		switch (state) {
+
 		/**
 		* In the idle state, buffer chars until we hit {} (OBJECT_START).
 		* After buffering the start, the next character should be either -
 		* (MPF) or { (JSON). This gets determined in the WAIT_TYPE state.
 		*/
 		case StreamParser::IDLE:
-			if (d == OBJECT_START[min(buf_bytes, hdr_size)] && buf_bytes < buf_size) {
-				buf[buf_bytes++] = d; 
+			consumed = 1;
+			if (*in == OBJECT_START[min(buf_bytes, hdr_size)] && buf_bytes < buf_size) {
+				buf[buf_bytes++] = *in; 
 				if (buf_bytes == hdr_size)
 					state = WAIT_TYPE;
 
@@ -74,19 +91,20 @@ public:
 		*/
 		case WAIT_TYPE:
 			// This character and data that follows are JSON.
-			if (d == JsonParserType::JSON_START) {
+			if (*in == JsonParserType::JSON_START) {
 				state = JSON;
 
 				[[fallthrough]];
 
 			// This begins a multipart form.
-			} else if (d == MULTIPART_START) {
+			} else if (*in == MULTIPART_START) {
 				state = StreamParser::MULTIPART;
 
 				[[fallthrough]];
 
 			// Unknown
 			} else {
+				consumed = 1;
 				reset();
 
 				break;
@@ -97,28 +115,32 @@ public:
 		* no longer accepts them, reset the parser (JSON parser resets itself).
 		*/
 		case JSON:
-			if (json.template feed<0u>(d) != JsonParserType::CONTINUE) {
+			typename JsonParserType::Status status;
+			std::tie(consumed, status) = json.template feed<0u>(in, size);
+
+			if (status != JsonParserType::CONTINUE)
 				reset();
-			}
 
 			break;
 
 		case MULTIPART: 
+			consumed = 1;
 			reset();
 
 			break;
+
+		default:
+			consumed = 1;
+			break;
 		}
+
+		return consumed;
 	}
 
-	void feed(const char *str) {
-		while (*str)
-			feed(*str++);
-	}
-
-	void feed(const char *const str, const size_t size) {
-		for (size_t i = 0; i < size; ++i)
-			feed(str[i]);
-	}
+	// void feed(const char *str) {
+	// 	while (*str)
+	// 		feed(*str++);
+	// }
 };
 
 }

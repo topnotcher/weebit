@@ -5,6 +5,15 @@
 #ifndef WEEBITCPPJSON_H
 #define WEEBITCPPJSON_H
 
+#ifdef __has_cpp_attribute
+#  if __has_cpp_attribute(fallthrough)
+#    define FALLTHROUGH [[fallthrough]]
+#  endif
+#endif
+#ifndef FALLTHROUGH
+#  define FALLTHROUGH
+#endif
+
 using std::size_t;
 using std::isspace;
 
@@ -27,20 +36,17 @@ public:
 
 	enum ParseFlags {
 		allowInterDocWhiteSpace = 1,
-		preserveWhiteSpace,
+		removeWhiteSpace = 2,
 	};
 
 private:
 	enum {
+		IDLE,
 		DOCUMENT,
 		QUOTE,
+		QUOTE_ESCAPE,
 	} state; 
 	JsonDocumentHandler handler;
-	size_t buf_size;
-	size_t buf_bytes;
-	char *buf;
-	bool escaped_char;
-
 	size_t level;
 
 	template<unsigned flags=0>
@@ -74,7 +80,7 @@ private:
 			state = QUOTE;
 
 		// Stupid optimization: avoid buffering whitespace in the document.
-		} else if (!(flags & preserveWhiteSpace) && isspace(d)) {
+		} else if ((flags & removeWhiteSpace) && isspace(d)) {
 			consumed = false;
 		}
 
@@ -83,73 +89,113 @@ private:
 
 	template<unsigned flags=0>
 	std::tuple<bool, Status> feed_quoted(const char d) {
-		if (!escaped_char) {
-			if (d == '"')
-				state = DOCUMENT;
+		if (d == '"')
+			state = DOCUMENT;
 
-			else if (d == '\\')
-				escaped_char = true;
-
-		} else {
-			escaped_char = false;
-		}
+		else if (d == '\\')
+			state = QUOTE_ESCAPE;
 
 		return std::make_tuple(true, CONTINUE);
 	}
 
-	void reset() {
-		level = 0;
-		escaped_char = false;
-		state = DOCUMENT;
+	template<unsigned flags=0>
+	std::tuple<bool, Status> feed_quoted_escape(const char) {
+		state = QUOTE;
 
-		handler.flush();
+		return std::make_tuple(true, CONTINUE);
 	}
 
-	inline bool consume(const char d) {
-		return handler.consume(d);
+	template<unsigned flags=0>
+	std::tuple<bool, Status> feed(const char d) {
+		auto status = CONTINUE;
+		auto consumed = false;
+
+		switch (state) {
+		case IDLE:
+			reset();
+			state = DOCUMENT;
+
+			FALLTHROUGH;
+
+		case DOCUMENT:
+			std::tie(consumed, status) = feed_document<flags>(d);
+			break;
+
+		case QUOTE:
+			std::tie(consumed, status) = feed_quoted<flags>(d);
+			break;
+
+		case QUOTE_ESCAPE:
+			std::tie(consumed, status) = feed_quoted_escape<flags>(d);
+			break;
+
+		default:
+			status = INVALID_STATE;
+			break;
+		}
+
+		return std::make_tuple(consumed, status);
 	}
 
 public:
 
-	JsonParser(JsonDocumentHandler &h) {
-		handler = h;
-		reset();
-	}
-
-	~JsonParser() {}
-
 	template<unsigned flags=0>
-	Status feed(const char d) {
+	std::tuple<size_t, Status> feed(const char *const in, const size_t size) {
 		auto status = CONTINUE;
-		auto consumed = false;
+		size_t total_consumed = 0;
+		size_t idx = 0;
 
-		if (state == DOCUMENT) {
-			std::tie(consumed, status) = feed_document<flags>(d);
+		auto start = in;
 
-		} else if (state == QUOTE) {
-			std::tie(consumed, status) = feed_quoted<flags>(d);
+		while (idx < size && status == CONTINUE)  {
+			total_consumed++;
 
-		} else {
-			status = INVALID_STATE;
-		}
+			bool consume;
+			std::tie(consume, status) = feed<flags>(in[idx++]);
 
-		if (consumed) {
-			if (!handler.consume(d)) {
-				status = BUFFER_OVERFLOW;
+			// Three cases:
+			// - Status is DONE => we should consume all chars processed
+			// - Status is CONTINUE, consume is false: hit whitespace or
+			//   something that won't be consumed, but not a parse error. In
+			//   this case, consume up to that char, but skip it.
+			// - Status is CONTINUE and we're at the end of the buffer => consume it all.
+			if ((status == DONE) || (status == CONTINUE && (!consume || idx == size))) {
+				auto end = consume ? in + idx : in + idx - 1;
 
-			} else if (status == DONE) {
-				handler.done();
+				if (!handler.consume(start, end - start)) {
+					status = BUFFER_OVERFLOW;
+
+				} else {
+					start = in + idx;
+				}
 			}
 		}
 
-		// Could be either DONE or an error. In any case, state needs to be reset.
-		if (status != CONTINUE) {
-			reset();
+		if (status == DONE) {
+			handler.done();
 		}
 
-		return status;
-	}
-};
+		if (status != CONTINUE) {
+			state = IDLE;
+		}
 
+		return std::make_tuple(total_consumed, status);
+	}
+
+	void reset() {
+		level = 0;
+		state = IDLE;
+
+		handler.flush();
+	}
+
+	JsonParser(JsonDocumentHandler &h) : handler(h) {
+		reset();
+	}
+
+	JsonParser(JsonDocumentHandler &&h) : JsonParser(h) {}
+
+	~JsonParser() {}
+};
 }
 #endif

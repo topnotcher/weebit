@@ -23,6 +23,14 @@ struct JsonHandler {
 	}
 	~JsonHandler() { }
 
+	bool consume(const char *const str, const size_t size) {
+		bool consumed = true;
+		for (size_t idx = 0; idx < size && consumed; ++idx)
+			consumed = consume(str[idx]);
+
+		return consumed;
+	}
+
 	/**
 	 * consume JSON
 	 */
@@ -69,10 +77,6 @@ struct Stream {
 
 	Stream(const size_t stream_id, JsonHandlerType &json)
 		: stream_id(stream_id), parser(json) {}
-
-	void feed(const char d) {
-		parser.feed(d);
-	}
 
 	void feed(const char *const buf, size_t size) {
 		parser.feed(buf, size);
